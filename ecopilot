@@ -1,0 +1,24 @@
+#!/bin/sh
+# 僅替目前指令設定環境，不變更呼叫端的 shell。
+set -eu
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+cd "$project_root"
+unset PYTHONHOME PYTHONPATH
+
+if [ -x "$project_root/.venv/bin/python" ]; then
+    exec "$project_root/.venv/bin/python" -I "$project_root/scripts/environment.py" "$@"
+fi
+
+case "${1:-help}" in
+    setup)
+        if ! command -v python3.14 >/dev/null 2>&1; then
+            echo '需要 Python 3.14；請先安裝，再執行 ./ecopilot setup。' >&2
+            exit 1
+        fi
+        exec python3.14 -I "$project_root/scripts/environment.py" "$@"
+        ;;
+    *)
+        echo '尚未建立專案虛擬環境，請先執行 ./ecopilot setup。' >&2
+        exit 1
+        ;;
+esac
