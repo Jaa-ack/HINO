@@ -1,42 +1,70 @@
-# HINO EcoPilot｜車隊協同節能決策原型
+# HINO EcoPilot
 
-HINO EcoPilot 將 iTRAQ 車聯網資料整理成可比較的行程證據，先判斷是否存在燃油效率差距，再找出值得優先核對的操作、怠速／停留及車輛效率訊號，最後把問題交給真正有權處理的角色。系統不把高油耗直接歸責於駕駛，也不把來源事件次數直接視為標準化績效。
+**車隊協同節能決策原型：從行程證據，走到可追蹤的下一步。**
 
-這是離線歷史資料 Prototype：Competition Core RAW／DERIVED 驅動主要分析，Mock 是 Production Context 的展示 placeholder。Historical Replay 不代表即時 Coaching；Benchmark Gap 不等於保證節省；車況訊號不診斷故障。真正節油成果須由 Pilot 閉環驗證。
+HINO EcoPilot 以 iTRAQ 車聯網歷史資料為基礎，整理每台車的行程、燃油與運轉狀態，透過可比較行程找出效率差距，再將需要核對的問題分派給駕駛、調度、車隊管理或維修人員。使用者可查看支持證據、記錄處理措施，並持續追蹤案件。
 
-## 五分鐘展示
+專案使用 Python 與 Streamlit，包含資料處理管線、六個分析頁面、本機行動追蹤，以及選配的 AI 建議措辭功能。
 
-1. **資料旅程**：指出此次 Competition Core、Extended iTRAQ Production Reference、企業營運情境與外部資料四層。0929 XLSX 是參考 metadata，不是第二份 telemetry。
-2. **車隊總覽**：看總里程、觀測燃油、km/L、觀測怠速比例與有比較支持的燃油差距；不把怠速或差距稱為已節省。
-3. **行程探索**：`enabledCode + journeyCode` 還原一車一趟；Idle Duration 取自 `carStatus + timestamp`，不是 Event 2。Comparable Benchmark 排除本車。三項槓桿只排序核對優先度；Event 6／7／8／11 只作設定依賴的 Supporting Evidence。
-4. **駕駛節能教練**：案例 B 是「操作型態待核對」，不是判定駕駛錯誤；歷史回放不是 Live Alert。
-5. **管理行動中心**：在「行動工作台」按角色選擇案件，查看主要負責人、協作角色、證據與待核對項目，填寫執行措施、追蹤狀態與下次追蹤日期並保存。負載需先核對載重、坡度、任務與車況；低證據先補資料。「全部待辦」可下載 CSV，「車況證據」可核對連續殘差。
-6. **資料與假設**：查看來源事件衝突、四層能力矩陣、模型基線驗證與 Pilot 空白成效模板。GenAI 只把已計算證據轉成角色化下一步。
+> 本 repository 提供程式碼與技術文件。競賽原始資料、參考檔、分析產物與本機追蹤紀錄未公開；完整分析與展示需要自行取得授權資料並完成建置。目前未提供可直接執行的公開示範資料集。
 
-## 此次 Competition Data 與 Production Reference
+## 功能
 
-| 層級 | 內容 | 目前地位 |
-| --- | --- | --- |
-| A Competition Core | 20 台車、`enabledCode`、`journeyCode`、Type、GPS、里程、燃油、RPM、負載、carStatus、來源 Events 等 | 此次 XLSX 實際觀測，進主要分析 |
-| B Extended iTRAQ | `driverUid`、`tachographDriver`、`engineFuelRate`、`instantaneousFuel`、`pedalPosition`、`gearBoxPosition`、`ptoSwitch` 等 | 0929 已遷移 Rawdata 的參考 schema；競賽 extract 沒有，正式可用性待確認 |
-| C Enterprise Context | Task、Actual Payload、Delivery Window、Stop Purpose、Maintenance | 需企業營運系統介接 |
-| D External Context | Traffic、Weather、Gradient | 選配外部來源 |
+| 頁面 | 用途 |
+| --- | --- |
+| 資料旅程 | 查看資料來源、處理流程、品質問題，以及原始、衍生與模擬資料的界線。 |
+| 車隊總覽 | 掌握里程、燃油效率、觀測怠速與有比較支持的燃油差距。 |
+| 行程探索 | 檢視單趟行程、比較證據、怠速／停留情境、轉速與引擎負載型態。 |
+| 駕駛節能教練 | 以歷史行程回放呈現操作訊號，提供一個主要核對行動。 |
+| 管理行動中心 | 按角色處理案件，保存措施、追蹤狀態與下次追蹤日期，並匯出待辦 CSV。 |
+| 資料與假設 | 查閱來源定義、事件限制、資料能力矩陣、模型驗證與試行成效模板。 |
 
-`driver_id`、任務／載重／停靠用途與路況在 Prototype 為 MOCK。正式產品應先確認 iTRAQ 的 `driverUid`／`tachographDriver` 等欄位，並依車型、設備及資料管線查證；不預設需增設感測器，也不把參考 schema 當成此次競賽實測值。`ptoSwitch` 不在競賽資料，故目前無法判定怠速是否可避免。詳見 [來源契約](docs/source_contract.md)、[資料能力矩陣](docs/data_capability_matrix.md) 與 [事件參考](docs/event_reference.md)。
+## 分析流程
 
-FAQ 與 0929 參考表對 Event 8 超速預設門檻不同，標記 `SOURCE_CONFLICT`。EcoPilot 不重建 Event 8；僅保留 iTRAQ 系統通報的去重次數。Event 6／7／8／11 設定可能依客戶與時期變動，不直接作跨車績效或主要 ML 特徵。`rpm_above_2500_ratio` 與 `engine_load_above_90_ratio` 是 EcoPilot 原型衍生門檻，不等於 HINO 官方 Event 11。
-
-## 快速啟動與重建
-
-需要 Python 3.14；本機驗證為 macOS ARM64／Python 3.14.3。Git 版本只包含程式與公開文件，原始資料、分析產物、私密設定及影片製作檔保留在本機；位置與上傳規則見 [Git 與本機檔案管理](docs/repository.md)。交付 ZIP 不含 `.venv`。已有本機分析資料時，在專案目錄執行：
-
-```bash
-./ecopilot setup
-./ecopilot check
-./ecopilot start
+```mermaid
+flowchart LR
+    A[歷史車聯網資料] --> B[品質檢查與行程重建]
+    B --> C[可比較行程基準]
+    C --> D[效率差距與待核對訊號]
+    D --> E[角色分工與建議]
+    E --> F[本機行動追蹤]
 ```
 
-開啟 <http://127.0.0.1:18501>；啟動終端以 Ctrl+C 停止。若只取得程式碼，將競賽原始 XLSX 放入 `data/raw/`，將 FAQ PDF 與 `Event Type_0929補充.xlsx` 放入 `data/reference/`，然後執行：
+行程以 `enabledCode + journeyCode` 識別；同儕比較排除本車，並保留比較層級與證據強度。怠速時間依車輛狀態與有效時間間隔計算。原始活頁簿保持唯讀，透過 SHA-256 核對原始來源在建置前後的完整性。
+
+主要分析使用競賽原始資料與衍生特徵。駕駛身分、任務、載重及部分營運情境使用模擬資料展示，並標示為 `MOCK`；這些欄位不參與主要比較、改善優先度或車況訊號判定。Random Forest 為選配的回顧驗證模型，不直接決定主要分析結果。
+
+## 快速開始
+
+### 1. 建立環境
+
+需要 **Python 3.14**。已驗證環境為 macOS ARM64、Python 3.14.3；命令入口支援 macOS／Linux，Linux 尚未完成實機驗證，Windows 未提供原生命令入口。
+
+```bash
+git clone https://github.com/Jaa-ack/HINO.git
+cd HINO
+./ecopilot setup
+./ecopilot check
+```
+
+`setup` 建立專案專用的 `.venv`，依 `requirements-lock.txt` 安裝固定版本。首次安裝需要網路連線；後續指令透過 `./ecopilot` 執行。
+
+### 2. 準備授權資料
+
+依以下檔名放置資料：
+
+```text
+data/
+├── raw/
+│   └── output data_Hotai_20260511.xlsx
+└── reference/
+    ├── HINO competition FAQ.pdf
+    └── Event Type_0929補充.xlsx
+```
+
+原始 XLSX 提供觀測欄位與單位；FAQ 與 0929 補充檔提供事件及欄位定義。補充檔屬於參考資料，不合併為另一份車聯網觀測資料。來源優先順序見 [來源契約](docs/source_contract.md)。
+
+### 3. 建置、驗證與啟動
 
 ```bash
 ./ecopilot build --ml
@@ -44,33 +72,69 @@ FAQ 與 0929 參考表對 Event 8 超速預設門檻不同，標記 `SOURCE_CONF
 ./ecopilot start
 ```
 
-來源 SHA-256 相同時重用 raw Parquet 快取；`--force` 可重新讀 XLSX。原始來源不寫回，補充 XLSX 不併入 telemetry。六頁分析讀取本機處理產物；管理行動中心另外將人工填寫的措施保存到 `data/pilot/action_tracking.sqlite3`，不改寫來源或分析結果。可選配 GenAI：設定 `.env` 的 API key、模型及 `ECOPILOT_ENABLE_LLM=true`，在行程頁主動按鈕；外送只含匿名 trip key、角色與白名單結構化證據，不送原始 ID、GPS 或 Mock，API 不可用時回退離線範本。
+在瀏覽器開啟 **<http://127.0.0.1:18501>**，並在啟動終端以 `Ctrl+C` 停止服務。資料建置完成後，日常使用只需執行 `./ecopilot start`。
 
-行動工作台預設勾選「操作示範紀錄」，與實際試行分開讀寫；同一趟行程的不同問題各自保存，重新開啟可繼續編輯。紀錄時間與預設追蹤日期使用 Asia/Taipei。狀態為「待核對／已採納／執行中／待驗證」，只記錄人工填寫的進度，不判定執行成功或節油；所有狀態均標示「待後續可比較行程驗證」。這是本機原型，尚未提供多人帳號、通知、企業工單介接或自動前後成效驗證。測試或獨立展示可透過 `ECOPILOT_ACTION_DB` 指定另一個 SQLite 檔案。
+`--ml` 會額外訓練與驗證模型；只需主要分析時可執行 `./ecopilot build`。來源內容未變更時會重用原始 Parquet 快取；重新讀取 XLSX 可使用 `./ecopilot build --force --ml`。完整測試包含實際資料及頁面整合檢查，需先完成資料建置。
 
-## 方法與重建後結果
-
-流程：iTRAQ Competition Data → Data Quality → Trip Reconstruction → Comparable Trip Benchmark → Benchmark Fuel Gap → 三項 Improvement Lever Screening → Vehicle Efficiency Signal → Owner Assignment → Decision Packet → GenAI Persona Recommendation → Action → Pilot Outcome Validation。`RAW / DERIVED / MOCK` 僅描述 Prototype runtime 來源；四層能力矩陣描述正式產品可接資料來源，兩者用途不同。
-
-2026-10-02 執行 `./ecopilot build --ml`：493,744 原始列、55 欄、111,172 事件紀錄，彙整 3,541 趟、20 台車；1,401 趟符合比較前品質條件。1,383 趟得到同儕支持（L2 1,146、L3 237；L1 0），MEDIUM 1,065、LOW 318、HIGH 0。正向 Benchmark Gap 合計 **1,631.785 L**，不是可實現節省。車況檢查訊號 **34 趟／7 台車**；行動待辦 **2,969 筆**（包含比較證據不足的補證據待辦）。Event 6／7 移除後，車況訊號數值已由新模型重算。
-
-Random Forest 只作 Validation／Scenario Support，6 個數值特徵加 `vehicle_type`、`route_id`、`time_of_day`；不含來源 Event 6／7 或 Mock。預處理與兩個 baseline 在各訓練折內擬合。
-
-| 驗證 | RF MAE | RF R² | Baseline A MAE | Baseline B MAE | RF 相對 A／B 的 MAE 變化 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 5-fold GroupKFold by vehicle，1,401 趟 | 2.298 L | 0.835 | 3.483 L | 2.346 L | 34.02%／2.02% |
-| 時間 holdout，訓練 1,115、測試 281 趟 | 1.452 L | 0.825 | 3.448 L | 1.790 L | 57.88%／18.87% |
-
-MAE 變化是回顧預測誤差變化，不是節油成效。時間 holdout 可能包含相同車輛，行程後特徵不能當成出發前預測。完整公式與限制見 [分析方法](docs/methodology.md)、[假設](docs/assumptions.md)。
-
-## Production Roadmap 與交付
-
-Stage 1：Competition Core 與本機 Recommendation → Action 追蹤已可用。Stage 2：確認 Extended iTRAQ 的駕駛、燃油率、踏板、檔位與 PTO 欄位。Stage 3：介接企業 Task、Payload、Delivery Window、Stop Purpose、Maintenance。Stage 4：接入外部 Traffic、Weather、Gradient。Stage 5：Live Stream 與完整 Recommendation → Action → Outcome → Learning 閉環；在真實試行中以採納率、執行率、可比較前後與可行時對照組驗證，操作示範紀錄不計入實際成果。空白 [Pilot outcome 模板](data/pilot/action_outcomes_template.csv) 不含虛構成果。
+若預設連接埠已被占用：
 
 ```bash
-./ecopilot python -m compileall -q src scripts tests pages app.py
-./ecopilot test -q
-./ecopilot python scripts/package_delivery.py --output ../.local-only/deliveries/hino-ecopilot-delivery.zip
+./ecopilot start --port 18502
 ```
 
-交付 ZIP 保存在專案旁的 `.local-only/deliveries/`，包含原始競賽 XLSX、FAQ、0929 參考檔、來源登錄、處理資料、六頁程式與文件；排除 `.venv`、快取與 `.env`。這是含私密資料的完整交付包，不納入 Git 上傳。完整檢查結果見 [第二輪一致化報告](docs/final_alignment_report.md)。
+## 選配 AI 建議
+
+核心分析與所有頁面不需要 API 金鑰，預設使用離線建議範本。需要 AI 措辭功能時，先建立本機設定：
+
+```bash
+cp .env.example .env
+```
+
+在 `.env` 填入自己的金鑰與帳號可使用的模型名稱，並將 `ECOPILOT_ENABLE_LLM` 設為 `true`。重新啟動後，在行程探索頁主動點選生成按鈕。
+
+AI 僅將已計算的證據轉成角色化文字，不計算指標或重新分派責任。外送內容限於隨機匿名行程鍵、角色與白名單衍生證據；不傳送原始車輛／行程識別碼、GPS 或模擬營運情境。服務不可用或回覆未通過驗證時，回退離線範本。`.env` 已由 `.gitignore` 排除。
+
+## 行動追蹤
+
+管理行動中心將人工填寫的措施與進度保存到本機 `data/pilot/action_tracking.sqlite3`。同一行程的不同問題分別保存，重新開啟可繼續編輯；操作示範紀錄與實際試行紀錄分開管理，日期與時間使用 `Asia/Taipei`。
+
+目前追蹤狀態包含「待核對、已採納、執行中、待驗證」。這些狀態記錄處理進度，後續效果仍需以可比較行程驗證。測試或獨立展示可透過 `ECOPILOT_ACTION_DB` 指定另一個 SQLite 檔案。
+
+## 專案結構
+
+```text
+.
+├── app.py                  # Streamlit 入口與頁面導航
+├── ecopilot                # 環境與執行命令入口
+├── pages/                  # 六個功能頁面
+├── src/                    # 資料處理、分析、建議、追蹤與介面
+├── scripts/                # 環境管理、資料建置與交付工具
+├── tests/                  # 分析邏輯、資料界線與介面測試
+├── docs/                   # 方法、假設與技術文件
+├── assets/                 # Logo
+├── data/                   # 本機資料；Git 保留目錄佔位與空白成效模板
+├── .env.example            # 不含金鑰的設定範本
+└── requirements-lock.txt   # 固定套件版本
+```
+
+原始及衍生資料、追蹤資料庫、私密設定、實際資料截圖、影片、交付壓縮檔與執行快取均排除於版本控制。資料管理規則見 [Git 與本機檔案管理](docs/repository.md)。
+
+## 原型範圍
+
+- 本系統分析離線歷史資料；行程回放不提供即時駕駛警示。
+- 比較燃油差距表示值得核對的效率訊號，尚不能換算成可實現的節油成果。
+- 怠速是否可避免，需核對停靠用途、PTO、任務及現場作業需求；目前資料不足以直接判定。
+- 來源事件設定可能依客戶與時期變動，事件次數只作支持證據，不直接比較駕駛績效。
+- 車況訊號用於安排核對，不診斷或預測故障。
+- 目前提供本機行動追蹤；多人帳號、通知、企業工單介接及自動前後成效驗證仍待開發。
+
+正式導入需確認擴充 iTRAQ 欄位，介接任務、載重、維修與外部環境資料，並透過實際試行驗證採納率、執行率及可比較前後成效。
+
+## 技術文件
+
+- [分析方法](docs/methodology.md)：比較基準、改善訊號與模型驗證。
+- [資料與假設](docs/assumptions.md)：資料來源界線與模擬情境。
+- [來源契約](docs/source_contract.md)／[事件參考](docs/event_reference.md)：欄位單位、來源衝突與事件限制。
+- [資料能力矩陣](docs/data_capability_matrix.md)／[資料字典](docs/data_dictionary.md)：現有欄位與正式導入所需能力。
+- [環境管理](docs/environment.md)：安裝、執行、搬移與故障排除。
+- [試行驗證](docs/pilot_validation.md)／[空白成效模板](data/pilot/action_outcomes_template.csv)：追蹤行動與後續成果。
